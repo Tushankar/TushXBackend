@@ -24,6 +24,8 @@ const {
   getChatWallpaper,
   updateChatWallpaper,
   uploadWallpaper,
+  uploadVoiceMessage,
+  markVoiceAsListened,
 } = require("../controllers/authController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -151,6 +153,21 @@ router.post(
   authMiddleware,
   upload.single("wallpaper"),
   uploadWallpaper
+);
+
+// Upload voice message (multipart/form-data)
+router.post(
+  "/voice-message",
+  authMiddleware,
+  upload.single("voiceMessage"),
+  uploadVoiceMessage
+);
+
+// Mark voice message as listened
+router.put(
+  "/messages/:messageId/voice-listened",
+  authMiddleware,
+  markVoiceAsListened
 );
 
 // Update profile route (protected)

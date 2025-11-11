@@ -410,6 +410,10 @@ const getMessages = async (req, res) => {
         from: msg.from._id,
         to: msg.to._id,
         message: msg.message,
+        messageType: msg.messageType || "text",
+        voiceUrl: msg.voiceUrl || null,
+        voiceDuration: msg.voiceDuration || 0,
+        voiceListenedBy: (msg.voiceListenedBy || []).map((id) => id.toString()),
         isForwarded: msg.isForwarded || false,
         forwardedFrom: msg.forwardedFrom
           ? {
@@ -514,6 +518,8 @@ const getConversations = async (req, res) => {
           lastMessage: lastMessage.message,
           lastMessageTime: lastMessage.createdAt,
           unseenCount: unreadCount,
+          messageType: lastMessage.messageType || "text",
+          voiceDuration: lastMessage.voiceDuration || null,
         });
       }
     }
@@ -981,12 +987,10 @@ const uploadWallpaper = async (req, res) => {
     // Validate file type
     const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif"];
     if (!allowedTypes.includes(req.file.mimetype)) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "Invalid file type. Only JPEG, PNG, and GIF images are allowed.",
-        });
+      return res.status(400).json({
+        message:
+          "Invalid file type. Only JPEG, PNG, and GIF images are allowed.",
+      });
     }
 
     // Validate file size (max 5MB)
@@ -1027,6 +1031,66 @@ const uploadWallpaper = async (req, res) => {
   }
 };
 
+const uploadVoiceMessage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No voice file provided" });
+    }
+
+    // Generate public URL for the voice file
+    const voiceUrl = `${req.protocol}://${req.get("host")}/uploads/${
+      req.file.filename
+    }`;
+
+    res.json({
+      message: "Voice message uploaded successfully",
+      voiceUrl: voiceUrl,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+const markVoiceAsListened = async (req, res) => {
+  try {
+    const currentUserId = req.user.userId;
+    const { messageId } = req.params;
+
+    // Find the message and check if it's a voice message
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    if (message.messageType !== "voice") {
+      return res.status(400).json({ message: "This is not a voice message" });
+    }
+
+    // Check if current user is the recipient
+    if (message.to.toString() !== currentUserId) {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    // Add current user to voiceListenedBy if not already there
+    const userIdString = currentUserId.toString();
+    const alreadyListened = message.voiceListenedBy.some(
+      (id) => id.toString() === userIdString
+    );
+
+    if (!alreadyListened) {
+      message.voiceListenedBy.push(currentUserId);
+      await message.save();
+    }
+
+    res.json({
+      message: "Voice message marked as listened",
+      voiceListenedBy: message.voiceListenedBy.map((id) => id.toString()),
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 module.exports = {
   signup,
   verifyOTP,
@@ -1048,6 +1112,8 @@ module.exports = {
   favouriteMessage,
   unfavouriteMessage,
   getFavouriteMessages,
+  uploadVoiceMessage,
+  markVoiceAsListened,
   getChatWallpaper,
   updateChatWallpaper,
   uploadWallpaper,

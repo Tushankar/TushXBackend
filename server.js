@@ -230,6 +230,109 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Handle sending voice message
+  socket.on("sendVoiceMessage", async (data) => {
+    try {
+      const { to, messageId, voiceUrl, voiceDuration, replyTo } = data;
+      const chatKey = [socket.userId, to].sort().join("-");
+
+      // Save voice message to database
+      const newMessage = new Message({
+        from: socket.userId,
+        to,
+        message: "[Voice Message]",
+        messageType: "voice",
+        voiceUrl,
+        voiceDuration,
+        replyTo: replyTo || null,
+        chatKey,
+        status: "sent",
+      });
+
+      await newMessage.save();
+
+      // Emit to sender
+      socket.emit("messageSent", {
+        messageId,
+        dbId: newMessage._id,
+        status: "sent",
+      });
+
+      // Emit to receiver if online
+      const receiverSocketId = onlineUsers.get(to);
+      if (receiverSocketId) {
+        io.to(receiverSocketId).emit("receiveVoiceMessage", {
+          id: newMessage._id,
+          from: socket.userId,
+          to,
+          message: "[Voice Message]",
+          messageType: "voice",
+          voiceUrl,
+          voiceDuration,
+          voiceListenedBy: (newMessage.voiceListenedBy || []).map((id) =>
+            id.toString()
+          ),
+          replyTo: newMessage.replyTo,
+          timestamp: newMessage.createdAt,
+          status: "delivered",
+          deliveredAt: new Date(),
+        });
+
+        // Update message status to delivered
+        newMessage.status = "delivered";
+        newMessage.deliveredAt = new Date();
+        await newMessage.save();
+      } else {
+        // Receiver is offline — send push notifications to their registered tokens if enabled
+        try {
+          const receiverUser = await User.findById(to).select(
+            "pushTokens name notifications"
+          );
+          // Check if notifications are enabled (default to true if not set)
+          const pushEnabled =
+            receiverUser.notifications?.pushNotifications !== false;
+          const messageEnabled =
+            receiverUser.notifications?.messageNotifications !== false;
+
+          if (
+            receiverUser &&
+            receiverUser.pushTokens &&
+            receiverUser.pushTokens.length > 0 &&
+            pushEnabled &&
+            messageEnabled
+          ) {
+            const title = `${
+              socket.user.name || "Voice message"
+            } sent a voice message`;
+            const body = "🎤 Voice message";
+            const pushData = { chatKey, from: socket.userId };
+            // send push via Expo push service
+            await sendExpoPushNotifications(
+              receiverUser.pushTokens,
+              title,
+              body,
+              pushData
+            );
+          }
+        } catch (pushErr) {
+          console.error("Error sending push notification:", pushErr);
+        }
+      }
+
+      // Emit to chat room for real-time updates
+      io.to(chatKey).emit("messageStatusUpdate", {
+        messageId: newMessage._id,
+        status: receiverSocketId ? "delivered" : "sent",
+      });
+    } catch (error) {
+      console.error("Error sending voice message:", error);
+      socket.emit("messageError", {
+        messageId: data.messageId,
+        error: "Failed to send voice message",
+      });
+    }
+  });
+
   // Handle message delivered
   socket.on("messageDelivered", async (data) => {
     try {

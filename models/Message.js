@@ -17,6 +17,23 @@ const messageSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    messageType: {
+      type: String,
+      enum: ["text", "voice"],
+      default: "text",
+    },
+    voiceUrl: {
+      type: String,
+    },
+    voiceDuration: {
+      type: Number,
+    },
+    voiceListenedBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     replyTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Message",
