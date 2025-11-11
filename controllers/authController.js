@@ -873,6 +873,160 @@ const getFavouriteMessages = async (req, res) => {
   }
 };
 
+// Get chat wallpaper preference
+const getChatWallpaper = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select("chatWallpaper");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      wallpaper: user.chatWallpaper || {
+        type: "default",
+        id: null,
+        customUrl: null,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Update chat wallpaper preference
+const updateChatWallpaper = async (req, res) => {
+  try {
+    const { type, id, customUrl } = req.body;
+
+    // Validate wallpaper type
+    const validTypes = ["default", "predefined", "solid", "custom"];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ message: "Invalid wallpaper type" });
+    }
+
+    // Validate based on type
+    if (type === "predefined") {
+      const validWallpapers = [
+        "wallpaper1",
+        "wallpaper2",
+        "wallpaper3",
+        "wallpaper4",
+        "wallpaper5",
+        "wallpaper6",
+        "wallpaper7",
+        "wallpaper8",
+      ];
+      if (!validWallpapers.includes(id)) {
+        return res.status(400).json({ message: "Invalid wallpaper ID" });
+      }
+    } else if (type === "solid") {
+      const validColors = [
+        "color1",
+        "color2",
+        "color3",
+        "color4",
+        "color5",
+        "color6",
+        "color7",
+        "color8",
+        "color9",
+        "color10",
+        "color11",
+        "color12",
+      ];
+      if (!validColors.includes(id)) {
+        return res.status(400).json({ message: "Invalid color ID" });
+      }
+    } else if (type === "custom") {
+      if (!customUrl) {
+        return res
+          .status(400)
+          .json({ message: "Custom wallpaper URL is required" });
+      }
+    }
+
+    const wallpaperData = {
+      type,
+      id: type === "default" ? null : id,
+      customUrl: type === "custom" ? customUrl : null,
+    };
+
+    const user = await User.findByIdAndUpdate(
+      req.user.userId,
+      { chatWallpaper: wallpaperData },
+      { new: true }
+    ).select("chatWallpaper");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      message: "Chat wallpaper updated successfully",
+      wallpaper: user.chatWallpaper,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Upload custom wallpaper
+const uploadWallpaper = async (req, res) => {
+  try {
+    // multer stores the file on disk and attaches file info to req.file
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    // Validate file type
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif"];
+    if (!allowedTypes.includes(req.file.mimetype)) {
+      return res
+        .status(400)
+        .json({
+          message:
+            "Invalid file type. Only JPEG, PNG, and GIF images are allowed.",
+        });
+    }
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+    if (req.file.size > maxSize) {
+      return res
+        .status(400)
+        .json({ message: "File too large. Maximum size is 5MB." });
+    }
+
+    const wallpaperUrl = `${req.protocol}://${req.get("host")}/uploads/${
+      req.file.filename
+    }`;
+
+    // Update user's wallpaper to custom type
+    const user = await User.findByIdAndUpdate(
+      req.user.userId,
+      {
+        chatWallpaper: {
+          type: "custom",
+          id: null,
+          customUrl: wallpaperUrl,
+        },
+      },
+      { new: true }
+    ).select("chatWallpaper");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      message: "Wallpaper uploaded successfully",
+      wallpaper: user.chatWallpaper,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 module.exports = {
   signup,
   verifyOTP,
@@ -894,4 +1048,7 @@ module.exports = {
   favouriteMessage,
   unfavouriteMessage,
   getFavouriteMessages,
+  getChatWallpaper,
+  updateChatWallpaper,
+  uploadWallpaper,
 };

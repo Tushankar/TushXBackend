@@ -66,6 +66,22 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Chat wallpaper preference
+    chatWallpaper: {
+      type: {
+        type: String,
+        enum: ["default", "predefined", "solid", "custom"],
+        default: "default",
+      },
+      id: {
+        type: String,
+        default: null,
+      },
+      customUrl: {
+        type: String,
+        default: null,
+      },
+    },
     // Push notification tokens (Expo push tokens or FCM/APNs tokens)
     pushTokens: {
       type: [String],

@@ -21,6 +21,9 @@ const {
   favouriteMessage,
   unfavouriteMessage,
   getFavouriteMessages,
+  getChatWallpaper,
+  updateChatWallpaper,
+  uploadWallpaper,
 } = require("../controllers/authController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -134,6 +137,20 @@ router.put(
   "/messages/:messageId/unfavourite",
   authMiddleware,
   unfavouriteMessage
+);
+
+// Get chat wallpaper preference
+router.get("/chat-wallpaper", authMiddleware, getChatWallpaper);
+
+// Update chat wallpaper preference
+router.put("/chat-wallpaper", authMiddleware, updateChatWallpaper);
+
+// Upload custom wallpaper (multipart/form-data)
+router.post(
+  "/wallpaper",
+  authMiddleware,
+  upload.single("wallpaper"),
+  uploadWallpaper
 );
 
 // Update profile route (protected)
